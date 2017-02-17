@@ -7,7 +7,8 @@ import (
 	"log"
 	"net"
 	"net/smtp"
-	"gnd.la/net/mail"
+	"net/mail"
+	"github.com/jpoehls/gophermail" 
 )
 
 func main() {
@@ -15,5 +16,6 @@ func main() {
 }
 
 func Start {
-	
+	var msg gophermail.Message
+
 }
