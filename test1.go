@@ -8,10 +8,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
-
-	"io/ioutil"
 
 	"github.com/jpoehls/gophermail"
 )
@@ -19,8 +18,9 @@ import (
 func main() {
 	m := readConf()
 	fmt.Println(m)
+	var p os.FileMode
+	ioutil.WriteFile("test.zip", pack([]string{"D:\\DEV\\Go\\src\\github.com\\maanur\\escmailer\\UserManual.pdf"}), p)
 	log.Fatal("Not yet")
-	pack([]string{"config.conf"})
 }
 
 type escMsg struct {
@@ -32,11 +32,11 @@ type escMsg struct {
 	from   string   // от
 	subj   string   // тема
 	body   string
-	attach []io.Reader // файлы в аттаче
+	attach gophermail.Attachment // файлы в аттаче
 
 }
 
-func (m *escMsg) ready() []byte {
+/* func (m *escMsg) ready() []byte {
 	r := new(gophermail.Message)
 	for i := 0; i < len(m.to); i++ {
 		err := r.AddTo(m.to[i])
@@ -60,11 +60,12 @@ func (m *escMsg) ready() []byte {
 	r.Subject = m.subj
 	r.Body = m.body
 	output, err := r.Bytes()
+
 	if err != nil {
 		log.Fatal(err)
 	}
 	return output
-}
+} */
 
 func readConf() (m *escMsg) {
 	m = new(escMsg)
@@ -87,64 +88,30 @@ func readConf() (m *escMsg) {
 	return m
 }
 
-func pack(files []string) string {
+func pack(files []string) []byte {
 	buf := new(bytes.Buffer)
-	arch := zip.NewWriter(buf)
+	w := zip.NewWriter(buf)
 	for _, file := range files {
-		f, err := arch.Create(file)
+		fi, err := os.Lstat(file)
 		if err != nil {
 			log.Fatal(err)
 		}
-
-		_, err = f.Write(readFile(file))
+		f, err := w.Create(fi.Name())
+		if err != nil {
+			log.Fatal(err)
+		}
+		b, err := ioutil.ReadFile(file)
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = f.Write(b) // Сюда прочитать []byte из файла
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
-	var fm os.FileMode
-	err := ioutil.WriteFile("test.zip", readFile(files[0]), fm)
+	err := w.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
-	return "test.zip"
+	return buf.Bytes()
 }
-func readFile(f string) []byte {
-	o, err := ioutil.ReadFile(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return o
-}
-
-/*
-// Create a buffer to write our archive to.
-buf := new(bytes.Buffer)
-
-// Create a new zip archive.
-w := zip.NewWriter(buf)
-
-// Add some files to the archive.
-var files = []struct {
-    Name, Body string
-}{
-    {"readme.txt", "This archive contains some text files."},
-    {"gopher.txt", "Gopher names:\nGeorge\nGeoffrey\nGonzo"},
-    {"todo.txt", "Get animal handling licence.\nWrite more examples."},
-}
-for _, file := range files {
-    f, err := w.Create(file.Name)
-    if err != nil {
-        log.Fatal(err)
-    }
-    _, err = f.Write([]byte(file.Body))
-    if err != nil {
-        log.Fatal(err)
-    }
-}
-
-// Make sure to check the error on Close.
-err := w.Close()
-if err != nil {
-    log.Fatal(err)
-}
-*/
