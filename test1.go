@@ -18,9 +18,8 @@ import (
 func main() {
 	m := readConf()
 	fmt.Println(m)
-	var p os.FileMode
-	ioutil.WriteFile("test.zip", pack([]string{"D:\\DEV\\Go\\src\\github.com\\maanur\\escmailer\\UserManual.pdf"}), p)
-	log.Fatal("Not yet")
+	r := m.ready()
+	fmt.Println(string(r))
 }
 
 type escMsg struct {
@@ -36,7 +35,7 @@ type escMsg struct {
 
 }
 
-/* func (m *escMsg) ready() []byte {
+func (m *escMsg) ready() []byte {
 	r := new(gophermail.Message)
 	for i := 0; i < len(m.to); i++ {
 		err := r.AddTo(m.to[i])
@@ -59,13 +58,14 @@ type escMsg struct {
 	err := r.SetFrom(m.from)
 	r.Subject = m.subj
 	r.Body = m.body
+	r.Attachments = []gophermail.Attachment{m.attach}
 	output, err := r.Bytes()
 
 	if err != nil {
 		log.Fatal(err)
 	}
 	return output
-} */
+}
 
 func readConf() (m *escMsg) {
 	m = new(escMsg)
@@ -75,16 +75,30 @@ func readConf() (m *escMsg) {
 		log.Fatal(err)
 	}
 	rdr := bufio.NewReader(file)
+	// test message START
+	m.id = 1
+	m.from = "me@one.com"
+	m.to = []string{"you@two.ru"}
+	m.subj = "Превед, Чукотка!"
+	m.body = "Проверка! Рас-Рас."
+	m.attach.Name = "test.zip"
+	var t []string
 	for {
 		data, err := rdr.ReadString(13)
 		if err != nil && err != io.EOF {
 			log.Fatal(err)
 		}
-		m.body = m.body + data
+		t = append(t, data)
 		if err == io.EOF {
 			break
 		}
 	}
+	arch := pack(t)
+	_, err = m.attach.Data.Read(arch) // panic: runtime error: invalid memory address or nil pointer dereference
+	if err != nil {
+		log.Fatal(err)
+	}
+	// test message END
 	return m
 }
 
