@@ -186,12 +186,14 @@ func prompt(ask string, dft string) (output string) {
 	return output
 }
 
-func readConf() (srv server) {
+func readConf() (srv server, msg *escMsg) {
 	conf, err := ini.Load("config.ini")
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv.name=conf.Section("server").Key("name").String()
+	conf.
+	//server START
+	srv.name=conf.Section("server").Key("addr").String()
 	srv.port,err=conf.Section("server").Key("port").Int() // Читаем порт сервера. Доработать обработку ошибки.
 	if err != nil {
 		log.Fatal(err)
@@ -199,5 +201,10 @@ func readConf() (srv server) {
 	u:=conf.Section("server").Key("user").String()
 	p:=conf.Section("server").Key("passwd").String()
 	srv.auth = smtp.PlainAuth("", u, p, srv.name)
+	//server END
+	//message START
+	msg.subj=conf.Section("m").Key("addr").String()
+	msg.to=conf.
+	//message END
 	return
 }
