@@ -10,19 +10,21 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"os"
 	"net/smtp"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/jpoehls/gophermail"
 )
 
+// "github.com/go-ini/ini"
+
 func main() {
 	m := readConf()
-	r := m.ready()
-	fmt.Println(string(r))
-	srv:=customServer()
-	fmt.Println(srv)
+	srv := customServer()
+	sendall([]*escMsg{m}, srv)
+	os.Exit(0)
 }
 
 type escMsg struct {
@@ -82,18 +84,19 @@ func readConf() (m *escMsg) {
 	rdr := bufio.NewReader(file)
 	// test message START
 	m.id = 1
-	m.from = "me@one.com"
-	m.to = []string{"you@two.ru"}
+	m.from = "mal@esc.ru"
+	m.to = []string{"grushin_m@esc.ru"}
 	m.subj = "Превед, Чукотка!"
 	m.body = "Проверка! Рас-Рас."
 	m.attach.Name = "test.zip"
 	var t []string
 	for {
-		data, err := rdr.ReadString(13)
+		data, err := rdr.ReadString(10)
 		if err != nil && err != io.EOF {
 			log.Fatal(err)
 		}
-		t = append(t, data)
+		t = append(t, strings.TrimSpace(data))
+		fmt.Println(t)
 		if err == io.EOF {
 			break
 		}
@@ -117,7 +120,8 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 		}
 		b, err := ioutil.ReadFile(file)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			break
 		}
 		_, err = f.Write(b) // Сюда прочитать []byte из файла
 		if err != nil {
@@ -140,7 +144,7 @@ type server struct {
 func customServer() (srv server) {
 	// пока минимум...
 	var err error
-	srv.name=prompt("srv addr?","")
+	srv.name = prompt("srv addr?", "")
 	for {
 		srv.port, err = strconv.Atoi(prompt("srv port?", ""))
 		if err != nil {
@@ -151,14 +155,19 @@ func customServer() (srv server) {
 			break
 		}
 	}
-	u:=prompt("user?","")
-	p:=prompt("passwd?","")
-	srv.auth=smtp.PlainAuth("",u,p,srv.name)
+	u := prompt("user?", "")
+	p := prompt("passwd?", "")
+	srv.auth = smtp.PlainAuth("", u, p, srv.name)
 	return
 }
 
-func sendall(msgs [][]byte, srv server) {
-
+func sendall(msgs []*escMsg, srv server) {
+	for i := 0; i < len(msgs); i++ {
+		err := smtp.SendMail(srv.name+":"+strconv.Itoa(srv.port), srv.auth, msgs[i].from, msgs[i].to, msgs[i].ready())
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 
 func prompt(ask string, dft string) (output string) {
