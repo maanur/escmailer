@@ -12,15 +12,17 @@ import (
 	"log"
 	"os"
 	"net/smtp"
+	"strconv"
 
 	"github.com/jpoehls/gophermail"
 )
 
 func main() {
 	m := readConf()
-	fmt.Println(m)
 	r := m.ready()
 	fmt.Println(string(r))
+	srv:=customServer()
+	fmt.Println(srv)
 }
 
 type escMsg struct {
@@ -132,19 +134,34 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 type server struct {
 	name string
 	auth smtp.Auth
+	port int
 }
 
 func customServer() (srv server) {
 	// пока минимум...
-	srv.name=prompt("srv addr?","",false)
-	u:=prompt("user?","",false)
-	p:=prompt("passwd?","",false)
-	h:=prompt("host?","",false)
-	srv.auth=smtp.PlainAuth("",u,p,h)
+	var err error
+	srv.name=prompt("srv addr?","")
+	for {
+		srv.port, err = strconv.Atoi(prompt("srv port?", ""))
+		if err != nil {
+			fmt.Println(err)
+			fmt.Println("Try again!")
+		} else {
+			fmt.Println("OK")
+			break
+		}
+	}
+	u:=prompt("user?","")
+	p:=prompt("passwd?","")
+	srv.auth=smtp.PlainAuth("",u,p,srv.name)
 	return
 }
 
-func prompt(ask string, dft string, repeat bool) (output string) {
+func sendall(msgs [][]byte, srv server) {
+
+}
+
+func prompt(ask string, dft string) (output string) {
 	// в библитеку бы
 	consolereader := bufio.NewReader(os.Stdin)
 	fmt.Println(ask)
@@ -152,18 +169,9 @@ func prompt(ask string, dft string, repeat bool) (output string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if !repeat {
-		output = string(rn[:len(rn)-1])
-	} else {
-		output = string(rn[1 : len(rn)-1])
-	}
+	output = string(rn[:len(rn)-1])
 	if output == "" {
 		return dft
 	}
 	return output
-}
-
-func sendall(msgs [][]byte, srv smtp.ServerInfo) {
-	
-
 }

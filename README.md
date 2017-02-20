@@ -1,2 +1,2 @@
 # escmailer
-import github.com/maanur/escmailer
+go get github.com/maanur/escmailer
