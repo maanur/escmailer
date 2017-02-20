@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"net/smtp"
 
 	"github.com/jpoehls/gophermail"
 )
@@ -56,11 +57,13 @@ func (m *escMsg) ready() []byte {
 		}
 	}
 	err := r.SetFrom(m.from)
+	if err != nil {
+		log.Fatal(err)
+	}
 	r.Subject = m.subj
 	r.Body = m.body
 	r.Attachments = []gophermail.Attachment{m.attach}
 	output, err := r.Bytes()
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,16 +96,12 @@ func readConf() (m *escMsg) {
 			break
 		}
 	}
-	m.attach.Data = new(bytes.Buffer)
-	_, err = m.attach.Data.Read(pack(t)) // panic: runtime error: invalid memory address or nil pointer dereference
-	if err != nil && err!=io.EOF {
-		log.Fatal(err)
-	}
+	m.attach.Data = pack(t)
 	// test message END
 	return m
 }
 
-func pack(files []string) []byte {
+func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes на bytes.Buffer, который должен бы быть io.Reader
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
 	for _, file := range files {
@@ -127,17 +126,21 @@ func pack(files []string) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return buf.Bytes()
+	return buf
 }
 
-func customServer() (srv smtp.ServerInfo) {
+type server struct {
+	name string
+	auth smtp.Auth
+}
+
+func customServer() (srv server) {
 	// пока минимум...
-	srv.Name=prompt("srv addr?","",0)
-	srv.TLS=false
-	u:=prompt("user?","",0)
-	p:=prompt("passwd?","",0)
-	h:=prompt("host?","",0)
-	srv.Auth=smtp.PlainAuth("",u,p,h)
+	srv.name=prompt("srv addr?","",false)
+	u:=prompt("user?","",false)
+	p:=prompt("passwd?","",false)
+	h:=prompt("host?","",false)
+	srv.auth=smtp.PlainAuth("",u,p,h)
 	return
 }
 
