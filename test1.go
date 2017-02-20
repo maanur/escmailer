@@ -93,9 +93,9 @@ func readConf() (m *escMsg) {
 			break
 		}
 	}
-	arch := pack(t)
-	_, err = m.attach.Data.Read(arch) // panic: runtime error: invalid memory address or nil pointer dereference
-	if err != nil {
+	m.attach.Data = new(bytes.Buffer)
+	_, err = m.attach.Data.Read(pack(t)) // panic: runtime error: invalid memory address or nil pointer dereference
+	if err != nil && err!=io.EOF {
 		log.Fatal(err)
 	}
 	// test message END
