@@ -129,3 +129,38 @@ func pack(files []string) []byte {
 	}
 	return buf.Bytes()
 }
+
+func customServer() (srv smtp.ServerInfo) {
+	// пока минимум...
+	srv.Name=prompt("srv addr?","",0)
+	srv.TLS=false
+	u:=prompt("user?","",0)
+	p:=prompt("passwd?","",0)
+	h:=prompt("host?","",0)
+	srv.Auth=smtp.PlainAuth("",u,p,h)
+	return
+}
+
+func prompt(ask string, dft string, repeat bool) (output string) {
+	// в библитеку бы
+	consolereader := bufio.NewReader(os.Stdin)
+	fmt.Println(ask)
+	rn, err := consolereader.ReadBytes('\r') // this will prompt the user for input
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !repeat {
+		output = string(rn[:len(rn)-1])
+	} else {
+		output = string(rn[1 : len(rn)-1])
+	}
+	if output == "" {
+		return dft
+	}
+	return output
+}
+
+func sendall(msgs [][]byte, srv smtp.ServerInfo) {
+	
+
+}
