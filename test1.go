@@ -15,14 +15,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-ini/ini"
 	"github.com/jpoehls/gophermail"
 )
 
 // "github.com/go-ini/ini"
 
 func main() {
-	m := readConf()
-	srv := customServer()
+	m := readConfOld()
+	srv := readConf()
 	sendall([]*escMsg{m}, srv)
 	os.Exit(0)
 }
@@ -74,7 +75,7 @@ func (m *escMsg) ready() []byte {
 	return output
 }
 
-func readConf() (m *escMsg) {
+func readConfOld() (m *escMsg) {
 	m = new(escMsg)
 	var file io.Reader
 	file, err := os.Open("config.conf")
@@ -183,4 +184,20 @@ func prompt(ask string, dft string) (output string) {
 		return dft
 	}
 	return output
+}
+
+func readConf() (srv server) {
+	conf, err := ini.Load("config.ini")
+	if err != nil {
+		log.Fatal(err)
+	}
+	srv.name=conf.Section("server").Key("name").String()
+	srv.port,err=conf.Section("server").Key("port").Int() // Читаем порт сервера. Доработать обработку ошибки.
+	if err != nil {
+		log.Fatal(err)
+	}
+	u:=conf.Section("server").Key("user").String()
+	p:=conf.Section("server").Key("passwd").String()
+	srv.auth = smtp.PlainAuth("", u, p, srv.name)
+	return
 }
