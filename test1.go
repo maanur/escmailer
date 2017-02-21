@@ -7,13 +7,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
+	//"io"
 	"io/ioutil"
 	"log"
 	"net/smtp"
 	"os"
 	"strconv"
-	"strings"
+	//"strings"
 
 	"github.com/go-ini/ini"
 	"github.com/jpoehls/gophermail"
@@ -22,9 +22,9 @@ import (
 // "github.com/go-ini/ini"
 
 func main() {
-	m := readConfOld()
-	srv := readConf()
-	sendall([]*escMsg{m}, srv)
+	srv, _ := readConf()
+	fmt.Println(srv.name)
+	/*m.send(srv)*/
 	os.Exit(0)
 }
 
@@ -37,37 +37,46 @@ type escMsg struct {
 	from   string   // от
 	subj   string   // тема
 	body   string
-	attach gophermail.Attachment // файлы в аттаче
-
+	attach []struct {
+		name  string
+		files []string
+	} // файлы в аттаче
 }
 
-func (m *escMsg) ready() []byte {
-	r := new(gophermail.Message)
-	for i := 0; i < len(m.to); i++ {
-		err := r.AddTo(m.to[i])
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	for i := 0; i < len(m.cc); i++ {
-		err := r.AddCc(m.cc[i])
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	for i := 0; i < len(m.bcc); i++ {
-		err := r.AddBcc(m.bcc[i])
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	err := r.SetFrom(m.from)
+func (msg *escMsg) send(srv server) {
+	err := smtp.SendMail(srv.addr(), srv.auth(), msg.from, msg.to, msg.ready())
 	if err != nil {
 		log.Fatal(err)
 	}
-	r.Subject = m.subj
-	r.Body = m.body
-	r.Attachments = []gophermail.Attachment{m.attach}
+}
+
+func (msg *escMsg) ready() []byte {
+	r := new(gophermail.Message)
+	for i := 0; i < len(msg.to); i++ {
+		err := r.AddTo(msg.to[i])
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	for i := 0; i < len(msg.cc); i++ {
+		err := r.AddCc(msg.cc[i])
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	for i := 0; i < len(msg.bcc); i++ {
+		err := r.AddBcc(msg.bcc[i])
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	err := r.SetFrom(msg.from)
+	if err != nil {
+		log.Fatal(err)
+	}
+	r.Subject = msg.subj
+	r.Body = msg.body
+	r.Attachments = msg.convAttach()
 	output, err := r.Bytes()
 	if err != nil {
 		log.Fatal(err)
@@ -75,7 +84,16 @@ func (m *escMsg) ready() []byte {
 	return output
 }
 
-func readConfOld() (m *escMsg) {
+func (msg escMsg) convAttach() []gophermail.Attachment {
+	g := make([]gophermail.Attachment, len(msg.attach))
+	for i := 0; i < len(msg.attach); i++ {
+		g[i].Name = msg.attach[i].name
+		g[i].Data = pack(msg.attach[i].files)
+	}
+	return g
+}
+
+/*func readConfOld() (m *escMsg) {
 	m = new(escMsg)
 	var file io.Reader
 	file, err := os.Open("config.conf")
@@ -105,7 +123,7 @@ func readConfOld() (m *escMsg) {
 	m.attach.Data = pack(t)
 	// test message END
 	return m
-}
+}*/
 
 func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes на bytes.Buffer, который должен бы быть io.Reader
 	buf := new(bytes.Buffer)
@@ -121,12 +139,13 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 		}
 		b, err := ioutil.ReadFile(file)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			break
-		}
-		_, err = f.Write(b) // Сюда прочитать []byte из файла
-		if err != nil {
-			log.Fatal(err)
+		} else {
+			_, err = f.Write(b) // Сюда прочитать []byte из файла
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 	err := w.Close()
@@ -138,37 +157,37 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 
 type server struct {
 	name string
-	auth smtp.Auth
 	port int
+}
+
+func (srv server) auth() smtp.Auth {
+	if srv.name == "" {
+		log.Println("Fail making smtp.Auth: no server.name")
+		return nil
+	}
+	u := prompt("mailsrv user?", "")
+	p := prompt("mailsrv passwd?", "")
+	return smtp.PlainAuth("", u, p, srv.name)
+}
+
+func (srv *server) addr() string {
+	return srv.name + ":" + strconv.Itoa(srv.port)
 }
 
 func customServer() (srv server) {
 	// пока минимум...
 	var err error
-	srv.name = prompt("srv addr?", "")
+	srv.name = prompt("srv address?", "mail")
 	for {
-		srv.port, err = strconv.Atoi(prompt("srv port?", ""))
+		srv.port, err = strconv.Atoi(prompt("srv port?", "25"))
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("Try again!")
 		} else {
-			fmt.Println("OK")
 			break
 		}
 	}
-	u := prompt("user?", "")
-	p := prompt("passwd?", "")
-	srv.auth = smtp.PlainAuth("", u, p, srv.name)
 	return
-}
-
-func sendall(msgs []*escMsg, srv server) {
-	for i := 0; i < len(msgs); i++ {
-		err := smtp.SendMail(srv.name+":"+strconv.Itoa(srv.port), srv.auth, msgs[i].from, msgs[i].to, msgs[i].ready())
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
 }
 
 func prompt(ask string, dft string) (output string) {
@@ -187,24 +206,45 @@ func prompt(ask string, dft string) (output string) {
 }
 
 func readConf() (srv server, msg *escMsg) {
+	msg = new(escMsg)
 	conf, err := ini.Load("config.ini")
 	if err != nil {
 		log.Fatal(err)
 	}
-	conf.
 	//server START
-	srv.name=conf.Section("server").Key("addr").String()
-	srv.port,err=conf.Section("server").Key("port").Int() // Читаем порт сервера. Доработать обработку ошибки.
+	srv, err = readConfServer(conf)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		log.Println("Failed to read server from .ini")
+		srv = customServer()
 	}
-	u:=conf.Section("server").Key("user").String()
-	p:=conf.Section("server").Key("passwd").String()
-	srv.auth = smtp.PlainAuth("", u, p, srv.name)
 	//server END
 	//message START
-	msg.subj=conf.Section("m").Key("addr").String()
-	msg.to=conf.
+	sections := conf.Sections()
+	for _, sect := range sections {
+		if sect.Name() != "mailsrv" && sect.Name() != "cachesrv" {
+			msg.subj = sect.Key("addr").String()
+		}
+	}
 	//message END
-	return
+	return srv, msg
+}
+
+func readConfServer(conf *ini.File) (server, error) {
+	var srv server
+	s, err := conf.GetSection("mailsrv")
+	if err!=nil {
+		return srv, err
+	}
+	r,err:=s.GetKey("name")
+	if err!=nil {
+		return srv, err
+	}
+	srv.name=r.String()
+	r,err=s.GetKey("port")
+	if err!=nil {
+		return srv, err
+	}
+	srv.port,err=r.Int()
+	return srv, err
 }
