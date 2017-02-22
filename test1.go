@@ -14,16 +14,17 @@ import (
 	"os"
 	"strconv"
 	//"strings"
+	//"text/template"
 
 	"github.com/go-ini/ini"
 	"github.com/jpoehls/gophermail"
 )
 
-// "github.com/go-ini/ini"
-
 func main() {
-	srv, _ := readConf()
-	fmt.Println(srv.name)
+	srv, msgs := readConf()
+	for _, msg := range msgs {
+		msg.send(srv)
+	}
 	/*m.send(srv)*/
 	os.Exit(0)
 }
@@ -31,12 +32,8 @@ func main() {
 type escMsg struct {
 	// совокупность параметров для письма
 	id     int      // идентификактор письма
-	to     []string // кому
-	cc     []string // копия
-	bcc    []string // скрытая копия
-	from   string   // от
-	subj   string   // тема
-	body   string
+	to, cc, bcc     []string // кому, копия, скрытая копия
+	from, subj, body   string   // от, тема, текст
 	attach []struct {
 		name  string
 		files []string
@@ -44,7 +41,7 @@ type escMsg struct {
 }
 
 func (msg *escMsg) send(srv server) {
-	err := smtp.SendMail(srv.addr(), srv.auth(), msg.from, msg.to, msg.ready())
+	err := smtp.SendMail(srv.addr(), srv.auth(), msg.from, append(msg.to, append(msg.cc, msg.bcc...)...), msg.ready())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -92,38 +89,6 @@ func (msg escMsg) convAttach() []gophermail.Attachment {
 	}
 	return g
 }
-
-/*func readConfOld() (m *escMsg) {
-	m = new(escMsg)
-	var file io.Reader
-	file, err := os.Open("config.conf")
-	if err != nil {
-		log.Fatal(err)
-	}
-	rdr := bufio.NewReader(file)
-	// test message START
-	m.id = 1
-	m.from = "mal@esc.ru"
-	m.to = []string{"grushin_m@esc.ru"}
-	m.subj = "Превед, Чукотка!"
-	m.body = "Проверка! Рас-Рас."
-	m.attach.Name = "test.zip"
-	var t []string
-	for {
-		data, err := rdr.ReadString(10)
-		if err != nil && err != io.EOF {
-			log.Fatal(err)
-		}
-		t = append(t, strings.TrimSpace(data))
-		fmt.Println(t)
-		if err == io.EOF {
-			break
-		}
-	}
-	m.attach.Data = pack(t)
-	// test message END
-	return m
-}*/
 
 func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes на bytes.Buffer, который должен бы быть io.Reader
 	buf := new(bytes.Buffer)
@@ -174,6 +139,25 @@ func (srv *server) addr() string {
 	return srv.name + ":" + strconv.Itoa(srv.port)
 }
 
+func readConfServer(conf *ini.File) (server, error) {
+	var srv server
+	s, err := conf.GetSection("mailsrv")
+	if err != nil {
+		return srv, err
+	}
+	r, err := s.GetKey("name")
+	if err != nil {
+		return srv, err
+	}
+	srv.name = r.String()
+	r, err = s.GetKey("port")
+	if err != nil {
+		return srv, err
+	}
+	srv.port, err = r.Int()
+	return srv, err
+}
+
 func customServer() (srv server) {
 	// пока минимум...
 	var err error
@@ -205,46 +189,41 @@ func prompt(ask string, dft string) (output string) {
 	return output
 }
 
-func readConf() (srv server, msg *escMsg) {
-	msg = new(escMsg)
+func readConf() (srv server, msgs []*escMsg) {
 	conf, err := ini.Load("config.ini")
+	/*t1:=template.New("MailSection")*/
+	conf.BlockMode = false
 	if err != nil {
 		log.Fatal(err)
 	}
-	//server START
 	srv, err = readConfServer(conf)
 	if err != nil {
 		log.Println(err)
 		log.Println("Failed to read server from .ini")
 		srv = customServer()
 	}
-	//server END
-	//message START
 	sections := conf.Sections()
+	//message START
 	for _, sect := range sections {
-		if sect.Name() != "mailsrv" && sect.Name() != "cachesrv" {
-			msg.subj = sect.Key("addr").String()
+		if sect.Name() == "test" {
+			msg := new(escMsg)
+			msg.id, err = sect.Key("id").Int()
+			if err != nil {
+				log.Fatal(err)
+			}
+			msg.to = sect.Key("to").Strings(",")
+			msg.cc = sect.Key("cc").Strings(",")
+			msg.bcc = sect.Key("bcc").Strings(",")
+			msg.from = sect.Key("from").String()
+			msg.subj = sect.Key("subj").String()
+			msg.body = sect.Key("body").String()
+			/*
+				msg.attach[].name = sect.Key("attach").String()
+				msg.attach[].files = sect.Key("attach.files").Strings(",")
+			*/
+			msgs = append(msgs, msg)
 		}
 	}
 	//message END
-	return srv, msg
-}
-
-func readConfServer(conf *ini.File) (server, error) {
-	var srv server
-	s, err := conf.GetSection("mailsrv")
-	if err!=nil {
-		return srv, err
-	}
-	r,err:=s.GetKey("name")
-	if err!=nil {
-		return srv, err
-	}
-	srv.name=r.String()
-	r,err=s.GetKey("port")
-	if err!=nil {
-		return srv, err
-	}
-	srv.port,err=r.Int()
-	return srv, err
+	return srv, msgs
 }
