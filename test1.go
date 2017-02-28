@@ -31,10 +31,10 @@ func main() {
 
 type escMsg struct {
 	// совокупность параметров для письма
-	id     int      // идентификактор письма
-	to, cc, bcc     []string // кому, копия, скрытая копия
-	from, subj, body   string   // от, тема, текст
-	attach []struct {
+	id               int      // идентификактор письма
+	to, cc, bcc      []string // кому, копия, скрытая копия
+	from, subj, body string   // от, тема, текст
+	attach           []struct {
 		name  string
 		files []string
 	} // файлы в аттаче
@@ -217,10 +217,17 @@ func readConf() (srv server, msgs []*escMsg) {
 			msg.from = sect.Key("from").String()
 			msg.subj = sect.Key("subj").String()
 			msg.body = sect.Key("body").String()
-			/*
-				msg.attach[].name = sect.Key("attach").String()
-				msg.attach[].files = sect.Key("attach.files").Strings(",")
-			*/
+			for _, att := range sect.Key("attach").Strings(",") {
+				attsec, err := conf.GetSection(att)
+				if err != nil {
+					log.Println(err)
+				} else {
+					msg.attach = append(msg.attach, struct {
+						name string
+						files []string
+					} {attsec.Key("name").String(), attsec.Key("files").Strings(",")})
+				}
+			}
 			msgs = append(msgs, msg)
 		}
 	}
