@@ -14,9 +14,13 @@ import (
 	"os"
 	"strconv"
 	//"strings"
-	//"text/template"
+	"text/template"
 
 	"strings"
+
+	"path/filepath"
+
+	"time"
 
 	"github.com/go-ini/ini"
 	"github.com/jpoehls/gophermail"
@@ -96,6 +100,7 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
 	for _, file := range files {
+		fmt.Println(file)
 		fi, err := os.Lstat(file)
 		if err != nil {
 			log.Fatal(err)
@@ -206,19 +211,31 @@ func readConf() (srv server, msgs []*escMsg) {
 	}
 	sections := conf.Sections()
 	//message START
+	signature := func() string {
+		signa, err := conf.GetSection("signature")
+		if err != nil {
+			return ""
+		}
+		if !signa.HasKey("value") {
+			return ""
+		}
+		return signa.Key("value").String()
+	}()
 	for _, sect := range sections {
-		if sect.Name() == "test" {
+		if strings.Contains(sect.Name(), "letter") { //здесь надо будет добавить выбор писем по regexp
 			msg := new(escMsg)
 			msg.id, err = sect.Key("id").Int()
 			if err != nil {
 				log.Fatal(err)
 			}
+			p := newParser(msg.id)
 			msg.to = sect.Key("to").Strings(",")
 			msg.cc = sect.Key("cc").Strings(",")
 			msg.bcc = sect.Key("bcc").Strings(",")
 			msg.from = sect.Key("from").String()
-			msg.subj = sect.Key("subj").String()
-			msg.body = sect.Key("body").String()
+			msg.subj = p.parseString(sect.Key("subj").String())
+			//add template
+			msg.body = p.parseString(sect.Key("body").String() + string(10) + "--" + string(10) + signature)
 			for _, att := range sect.Key("attach").Strings(",") {
 				msg.attach = append(msg.attach, readAttach(conf, att))
 			}
@@ -233,27 +250,98 @@ func readAttach(conf *ini.File, sectname string) (attach struct {
 	name  string
 	files []string
 }) {
+	p := new(parser)
 	attsec, err := conf.GetSection(sectname)
 	if err != nil {
 		log.Println(err)
 	} else {
 		attach.name = attsec.Key("name").String()
 		if attsec.HasKey("directory") && attsec.Key("directory").String() != "" {
-			dir := attsec.Key("directory").String()
+			dir := p.parseString(attsec.Key("directory").String())
 			files := attsec.Key("files").Strings(",")
 			if strings.HasSuffix(dir, string(os.PathSeparator)) {
 				for _, file := range files {
-					attach.files = append(attach.files, dir+file)
+					attach.files = append(attach.files, checkFileName(p.parseString(dir+file))...)
 				}
 			} else {
 				for _, file := range files {
-					attach.files = append(attach.files, dir+string(os.PathSeparator)+file)
+					attach.files = append(attach.files, checkFileName(p.parseString(dir+string(os.PathSeparator)+file))...)
 				}
 			}
 
 		} else {
-			attach.files = attsec.Key("files").Strings(",")
+			for _, f := range attsec.Key("files").Strings(",") {
+				attach.files = append(attach.files, checkFileName(p.parseString(f))...)
+			}
 		}
 	}
 	return
 }
+
+func checkFileName(file string) (out []string) {
+	matches, err := filepath.Glob(file)
+	if err != nil {
+		log.Println(err)
+	}
+	if len(matches) == 0 {
+		log.Println("No matches for: " + file)
+	}
+	return matches
+}
+
+type parser struct {
+	count int
+}
+
+func (p *parser) Count() int {
+	return p.count
+}
+
+func (p *parser) Today() string {
+	return time.Now().Format("20060102")
+}
+
+func (p *parser) Yesterday() string {
+	return time.Now().AddDate(0, 0, -1).Format("20060102")
+}
+
+func (p *parser) parseString(input string) string {
+	tmpl, err := template.New("test").Parse(input)
+	if err != nil {
+		log.Fatal(err)
+	}
+	buf := new(bytes.Buffer)
+	err = tmpl.Execute(buf, p)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return string(buf.Bytes())
+}
+
+func newParser(id int) *parser {
+	p := new(parser)
+	p.count = func() int {
+		for {
+			cnt, err := strconv.Atoi(prompt("Value of <<Count>> for letter #"+strconv.Itoa(id), "0"))
+			if err != nil {
+				log.Println(err)
+			} else {
+				return cnt
+			}
+		}
+	}()
+	return p
+}
+
+/*func findLastDir(dir string) string { //поиск последней поддиректории. Актуальность под вопросом.
+	d, err := os.Open(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	sd, err := d.Readdirnames(0)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(sd[len(sd)])
+	return sd[len(sd)]
+}*/
