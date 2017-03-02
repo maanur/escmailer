@@ -16,6 +16,8 @@ import (
 	//"strings"
 	//"text/template"
 
+	"strings"
+
 	"github.com/go-ini/ini"
 	"github.com/jpoehls/gophermail"
 )
@@ -218,19 +220,40 @@ func readConf() (srv server, msgs []*escMsg) {
 			msg.subj = sect.Key("subj").String()
 			msg.body = sect.Key("body").String()
 			for _, att := range sect.Key("attach").Strings(",") {
-				attsec, err := conf.GetSection(att)
-				if err != nil {
-					log.Println(err)
-				} else {
-					msg.attach = append(msg.attach, struct {
-						name string
-						files []string
-					} {attsec.Key("name").String(), attsec.Key("files").Strings(",")})
-				}
+				msg.attach = append(msg.attach, readAttach(conf, att))
 			}
 			msgs = append(msgs, msg)
 		}
 	}
 	//message END
 	return srv, msgs
+}
+
+func readAttach(conf *ini.File, sectname string) (attach struct {
+	name  string
+	files []string
+}) {
+	attsec, err := conf.GetSection(sectname)
+	if err != nil {
+		log.Println(err)
+	} else {
+		attach.name = attsec.Key("name").String()
+		if attsec.HasKey("directory") && attsec.Key("directory").String() != "" {
+			dir := attsec.Key("directory").String()
+			files := attsec.Key("files").Strings(",")
+			if strings.HasSuffix(dir, string(os.PathSeparator)) {
+				for _, file := range files {
+					attach.files = append(attach.files, dir+file)
+				}
+			} else {
+				for _, file := range files {
+					attach.files = append(attach.files, dir+string(os.PathSeparator)+file)
+				}
+			}
+
+		} else {
+			attach.files = attsec.Key("files").Strings(",")
+		}
+	}
+	return
 }
