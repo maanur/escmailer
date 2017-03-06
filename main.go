@@ -47,7 +47,7 @@ type escMsg struct {
 }
 
 func (msg *escMsg) send(srv server) {
-	err := smtp.SendMail(srv.addr(), srv.auth(), msg.from, append(msg.to, append(msg.cc, msg.bcc...)...), msg.ready())
+	err := smtp.SendMail(srv.addr(), srv.auth, msg.from, append(msg.to, append(msg.cc, msg.bcc...)...), msg.ready())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,16 +130,7 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 type server struct {
 	name string
 	port int
-}
-
-func (srv server) auth() smtp.Auth {
-	if srv.name == "" {
-		log.Println("Fail making smtp.Auth: no server.name")
-		return nil
-	}
-	u := prompt("mailsrv user?", "")
-	p := prompt("mailsrv passwd?", "")
-	return smtp.PlainAuth("", u, p, srv.name)
+	auth smtp.Auth
 }
 
 func (srv *server) addr() string {
@@ -209,6 +200,15 @@ func readConf() (srv server, msgs []*escMsg) {
 		log.Println("Failed to read server from .ini")
 		srv = customServer()
 	}
+	srv.auth = func() smtp.Auth {
+		if srv.name == "" {
+			log.Println("Fail making smtp.Auth: no server.name")
+			return nil
+		}
+		u := prompt("mailsrv user?", "")
+		p := prompt("mailsrv passwd?", "")
+		return smtp.PlainAuth("", u, p, srv.name)
+	}()
 	sections := conf.Sections()
 	//message START
 	signature := func() string {
@@ -224,11 +224,7 @@ func readConf() (srv server, msgs []*escMsg) {
 	for _, sect := range sections {
 		if strings.Contains(sect.Name(), "letter") { //здесь надо будет добавить выбор писем по regexp
 			msg := new(escMsg)
-			msg.id, err = sect.Key("id").Int()
-			if err != nil {
-				log.Fatal(err)
-			}
-			p := newParser(msg.id)
+			p := newParser(sect.Key("name").String())
 			msg.to = sect.Key("to").Strings(",")
 			msg.cc = sect.Key("cc").Strings(",")
 			msg.bcc = sect.Key("bcc").Strings(",")
@@ -338,11 +334,11 @@ func (p *parser) parseString(input string) string {
 	return string(buf.Bytes())
 }
 
-func newParser(id int) *parser {
+func newParser(name string) *parser {
 	p := new(parser)
 	p.count = func() int {
 		for {
-			cnt, err := strconv.Atoi(prompt("Value of <<Count>> for letter #"+strconv.Itoa(id), "0"))
+			cnt, err := strconv.Atoi(prompt("Value of <<Count>> for letter : "+name, "0"))
 			if err != nil {
 				log.Println(err)
 			} else {
