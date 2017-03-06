@@ -279,7 +279,7 @@ func readAttach(conf *ini.File, sectname string) (attach struct {
 }
 
 func checkFileName(file string) (out []string) {
-	matches, err := filepath.Glob(file)
+	matches, err := filepath.Glob(filepath.FromSlash(file))
 	if err != nil {
 		log.Println(err)
 	}
@@ -303,6 +303,26 @@ func (p *parser) Today() string {
 
 func (p *parser) Yesterday() string {
 	return time.Now().AddDate(0, 0, -1).Format("20060102")
+}
+
+func (p *parser) LastOne(pattern string) string {
+	matches, err := filepath.Glob(filepath.FromSlash(pattern))
+	if err != nil {
+		log.Println(err)
+	}
+	if len(matches) == 0 {
+		log.Println("No matches for: " + pattern)
+		return ""
+	}
+	return func() string {
+		max := matches[0]
+		for _, i := range matches {
+			if i > max {
+				max = i
+			}
+		}
+		return max
+	}()
 }
 
 func (p *parser) parseString(input string) string {
