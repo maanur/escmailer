@@ -4,7 +4,6 @@ package main
 
 import (
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"fmt"
 	//"io"
@@ -14,11 +13,11 @@ import (
 	"os"
 	"strconv"
 	//"strings"
+	"path/filepath"
+	"strings"
 	"text/template"
 
-	"strings"
-
-	"path/filepath"
+	"github.com/maanur/escmailer/tui"
 
 	"time"
 
@@ -28,16 +27,22 @@ import (
 
 func main() {
 	srv, msgs := readConf()
-	for _, msg := range msgs {
-		msg.send(srv)
+	/*for _, i := range msgs {
+		msgs[i].send(srv)
+	}*/
+	var selector = make([]tui.SelectorItem, len(msgs))
+	for i, d := range msgs {
+		selector[i]=d
 	}
-	/*m.send(srv)*/
+	for _, msg := range msgs {
+			msg.send(srv)
+		}
 	os.Exit(0)
 }
 
 type escMsg struct {
 	// совокупность параметров для письма
-	id               int      // идентификактор письма
+	name             string   // идентификактор письма
 	to, cc, bcc      []string // кому, копия, скрытая копия
 	from, subj, body string   // от, тема, текст
 	attach           []struct {
@@ -46,7 +51,11 @@ type escMsg struct {
 	} // файлы в аттаче
 }
 
-func (msg *escMsg) send(srv server) {
+func (msg escMsg) Name() string {
+	return msg.name
+}
+
+func (msg escMsg) send(srv server) {
 	err := smtp.SendMail(srv.addr(), srv.auth, msg.from, append(msg.to, append(msg.cc, msg.bcc...)...), msg.ready())
 	if err != nil {
 		log.Fatal(err)
@@ -159,9 +168,9 @@ func readConfServer(conf *ini.File) (server, error) {
 func customServer() (srv server) {
 	// пока минимум...
 	var err error
-	srv.name = prompt("srv address?", "mail")
+	srv.name = tui.Prompt("srv address?", "mail")
 	for {
-		srv.port, err = strconv.Atoi(prompt("srv port?", "25"))
+		srv.port, err = strconv.Atoi(tui.Prompt("srv port?", "25"))
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("Try again!")
@@ -172,22 +181,7 @@ func customServer() (srv server) {
 	return
 }
 
-func prompt(ask string, dft string) (output string) {
-	// в библитеку бы
-	consolereader := bufio.NewReader(os.Stdin)
-	fmt.Println(ask)
-	rn, err := consolereader.ReadBytes('\r') // this will prompt the user for input
-	if err != nil {
-		log.Fatal(err)
-	}
-	output = string(rn[:len(rn)-1])
-	if output == "" {
-		return dft
-	}
-	return output
-}
-
-func readConf() (srv server, msgs []*escMsg) {
+func readConf() (srv server, msgs []escMsg) {
 	conf, err := ini.Load("config.ini")
 	/*t1:=template.New("MailSection")*/
 	conf.BlockMode = false
@@ -205,11 +199,10 @@ func readConf() (srv server, msgs []*escMsg) {
 			log.Println("Fail making smtp.Auth: no server.name")
 			return nil
 		}
-		u := prompt("mailsrv user?", "")
-		p := prompt("mailsrv passwd?", "")
+		u := tui.Prompt("mailsrv user?", "")
+		p := tui.Prompt("mailsrv passwd?", "")
 		return smtp.PlainAuth("", u, p, srv.name)
 	}()
-	sections := conf.Sections()
 	//message START
 	signature := func() string {
 		signa, err := conf.GetSection("signature")
@@ -221,10 +214,28 @@ func readConf() (srv server, msgs []*escMsg) {
 		}
 		return signa.Key("value").String()
 	}()
-	for _, sect := range sections {
-		if strings.Contains(sect.Name(), "letter") { //здесь надо будет добавить выбор писем по regexp
-			msg := new(escMsg)
-			p := newParser(sect.Key("name").String())
+	sections := conf.Sections()
+	var msgsections []*ini.Section
+	for _,ms:=range sections {
+		if strings.Contains(ms.Name(), "letter") {
+			msgsections = append(msgsections,ms)
+		}
+	}
+	var selector = make([]tui.SelectorItem, len(msgsections))
+	for i, d := range msgsections {
+		selector[i]=msgSection{d}
+	}
+	var msgchosen []*ini.Section
+	for _, msgsec := range tui.MultiChoice(selector) {
+		s, ok := msgsec.(msgSection)
+		if ok {
+			msgchosen = append(msgchosen, s.sect)
+		}
+	}
+	for _, sect := range msgchosen { //здесь надо будет добавить выбор писем по regexp
+			var msg escMsg
+			msg.name = sect.Key("name").String()
+			p := newParser(msg.name)
 			msg.to = sect.Key("to").Strings(",")
 			msg.cc = sect.Key("cc").Strings(",")
 			msg.bcc = sect.Key("bcc").Strings(",")
@@ -236,10 +247,17 @@ func readConf() (srv server, msgs []*escMsg) {
 				msg.attach = append(msg.attach, readAttach(conf, att))
 			}
 			msgs = append(msgs, msg)
-		}
 	}
 	//message END
 	return srv, msgs
+}
+
+type msgSection struct{
+	sect *ini.Section
+}
+
+func (sec msgSection) Name() string {
+	return sec.sect.Key("name").String()
 }
 
 func readAttach(conf *ini.File, sectname string) (attach struct {
@@ -338,7 +356,7 @@ func newParser(name string) *parser {
 	p := new(parser)
 	p.count = func() int {
 		for {
-			cnt, err := strconv.Atoi(prompt("Value of <<Count>> for letter : "+name, "0"))
+			cnt, err := strconv.Atoi(tui.Prompt("Value of <<Count>> for letter : "+name, "0"))
 			if err != nil {
 				log.Println(err)
 			} else {
