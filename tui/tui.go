@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-//Prompt asks the user for string variable, showing 'ask' and assigning 'dft' if user answered nothing
+// Prompt asks the user for string variable, showing 'ask' and assigning 'dft' if user answered nothing
 func Prompt(ask string, dft string) (output string) {
 	// в библитеку бы
 	consolereader := bufio.NewReader(os.Stdin)
@@ -25,19 +25,30 @@ func Prompt(ask string, dft string) (output string) {
 	return output
 }
 
+// PromptYN asks the user for bool variable
+func PromptYN(ask string, dft bool) bool {
+	l:="n"
+	if dft {
+		l="y"
+	}
+	for {
+		r:= Prompt(ask+" (y/n, default:"+l+")", l)
+		if r=="y" {
+			return true
+		}
+		if r=="n" {
+			return false
+		}
+		fmt.Println("Некорректный ответ: "+r)
+	}
+}
+
 // SelectorItem is an interface for anything that can be named
 type SelectorItem interface {
 	Name() string
 }
 
 // NewItem inserts SelectorItem to Selector
-/*func (sel Selector) NewItem(i SelectorItem) {
-	sel = append(sel, struct {
-		num  int
-		name string
-		item SelectorItem
-	}{len(sel), i.Name(), i})
-}*/
 
 //MultiChoice returns a slice of SelectorItem, picked by user from original slice
 func MultiChoice(sel []SelectorItem) []SelectorItem {
@@ -76,30 +87,3 @@ func MultiChoice(sel []SelectorItem) []SelectorItem {
     }
 	return b
 }
-
-/*func slicepop(in []interface{}, i int) (out []interface{}) {
-	for d:=0; d<len(in); d++ {
-		if d!=i {
-			append(out,in[d])
-		}
-	}
-}*/
-
-// SingleChoice shows Selector and returns one selected item
-/*func (sel Selector) SingleChoice() SelectorItem {
-	for _, s := range sel {
-		fmt.Println(strconv.Itoa(s.num) + " : " + s.name)
-	}
-	n:= func() int {
-		for {
-			check := Prompt("Your choice : ", "")
-			choice, err := strconv.Atoi(check)
-			if err != nil {
-				fmt.Println("Bad choice : " + check)
-			} else {
-				return choice	
-			}
-		}
-	}()
-	return sel[n].item
-}*/

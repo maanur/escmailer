@@ -15,6 +15,7 @@ import (
 	//"strings"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/maanur/escmailer/tui"
@@ -32,11 +33,11 @@ func main() {
 	}*/
 	var selector = make([]tui.SelectorItem, len(msgs))
 	for i, d := range msgs {
-		selector[i]=d
+		selector[i] = d
 	}
 	for _, msg := range msgs {
-			msg.send(srv)
-		}
+		msg.send(srv)
+	}
 	os.Exit(0)
 }
 
@@ -109,7 +110,7 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
 	for _, file := range files {
-		fmt.Println(file)
+		fmt.Println("Архивирую: " + file)
 		fi, err := os.Lstat(file)
 		if err != nil {
 			log.Fatal(err)
@@ -134,6 +135,23 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 		log.Fatal(err)
 	}
 	return buf
+}
+
+// copyToDir параллельно копирует массив файликов в данную директорию
+func copyToDir(files []string, dest string) {
+	var wg sync.WaitGroup
+	for _, file := range files {
+		_, fname:=filepath.Split(file)
+		wg.Add(1)
+		go func() {
+			copyFile(file, filepath.Clean(dest+string(os.PathSeparator())+fname))
+ 			defer wg.Done()
+		}()
+	}
+}
+
+func copyFile(file string, copy string) {
+	os.Create()
 }
 
 type server struct {
@@ -168,9 +186,9 @@ func readConfServer(conf *ini.File) (server, error) {
 func customServer() (srv server) {
 	// пока минимум...
 	var err error
-	srv.name = tui.Prompt("srv address?", "mail")
+	srv.name = tui.Prompt("Адрес почтового сервера?", "mail")
 	for {
-		srv.port, err = strconv.Atoi(tui.Prompt("srv port?", "25"))
+		srv.port, err = strconv.Atoi(tui.Prompt("Порт почтового сервера?", "25"))
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("Try again!")
@@ -199,8 +217,8 @@ func readConf() (srv server, msgs []escMsg) {
 			log.Println("Fail making smtp.Auth: no server.name")
 			return nil
 		}
-		u := tui.Prompt("mailsrv user?", "")
-		p := tui.Prompt("mailsrv passwd?", "")
+		u := tui.Prompt("Логин пользователя на почтовом сервере?", "")
+		p := tui.Prompt("Пароль пользователя на почтовом сервере?", "")
 		return smtp.PlainAuth("", u, p, srv.name)
 	}()
 	//message START
@@ -216,14 +234,14 @@ func readConf() (srv server, msgs []escMsg) {
 	}()
 	sections := conf.Sections()
 	var msgsections []*ini.Section
-	for _,ms:=range sections {
+	for _, ms := range sections {
 		if strings.Contains(ms.Name(), "letter") {
-			msgsections = append(msgsections,ms)
+			msgsections = append(msgsections, ms)
 		}
 	}
 	var selector = make([]tui.SelectorItem, len(msgsections))
 	for i, d := range msgsections {
-		selector[i]=msgSection{d}
+		selector[i] = msgSection{d}
 	}
 	var msgchosen []*ini.Section
 	for _, msgsec := range tui.MultiChoice(selector) {
@@ -233,26 +251,26 @@ func readConf() (srv server, msgs []escMsg) {
 		}
 	}
 	for _, sect := range msgchosen { //здесь надо будет добавить выбор писем по regexp
-			var msg escMsg
-			msg.name = sect.Key("name").String()
-			p := newParser(msg.name)
-			msg.to = sect.Key("to").Strings(",")
-			msg.cc = sect.Key("cc").Strings(",")
-			msg.bcc = sect.Key("bcc").Strings(",")
-			msg.from = sect.Key("from").String()
-			msg.subj = p.parseString(sect.Key("subj").String())
-			//add template
-			msg.body = p.parseString(sect.Key("body").String() + string(10) + "--" + string(10) + signature)
-			for _, att := range sect.Key("attach").Strings(",") {
-				msg.attach = append(msg.attach, readAttach(conf, att))
-			}
-			msgs = append(msgs, msg)
+		var msg escMsg
+		msg.name = sect.Key("name").String()
+		p := newParser(msg.name)
+		msg.to = sect.Key("to").Strings(",")
+		msg.cc = sect.Key("cc").Strings(",")
+		msg.bcc = sect.Key("bcc").Strings(",")
+		msg.from = sect.Key("from").String()
+		msg.subj = p.parseString(sect.Key("subj").String())
+		//add template
+		msg.body = p.parseString(sect.Key("body").String() + string(10) + "--" + string(10) + signature)
+		for _, att := range sect.Key("attach").Strings(",") {
+			msg.attach = append(msg.attach, readAttach(conf, att))
+		}
+		msgs = append(msgs, msg)
 	}
 	//message END
 	return srv, msgs
 }
 
-type msgSection struct{
+type msgSection struct {
 	sect *ini.Section
 }
 
@@ -325,7 +343,7 @@ func (p *parser) LastOne(pattern string) string {
 		log.Println(err)
 	}
 	if len(matches) == 0 {
-		log.Println("No matches for: " + pattern)
+		fmt.Println("{{LastOne}} не нашел: " + pattern)
 		return ""
 	}
 	return func() string {
@@ -356,7 +374,7 @@ func newParser(name string) *parser {
 	p := new(parser)
 	p.count = func() int {
 		for {
-			cnt, err := strconv.Atoi(tui.Prompt("Value of <<Count>> for letter : "+name, "0"))
+			cnt, err := strconv.Atoi(tui.Prompt("Значение {{Count}} для письма : "+name, "0"))
 			if err != nil {
 				log.Println(err)
 			} else {
