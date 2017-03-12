@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"io"
 	//"io"
 	"io/ioutil"
 	"log"
@@ -47,8 +48,9 @@ type escMsg struct {
 	to, cc, bcc      []string // кому, копия, скрытая копия
 	from, subj, body string   // от, тема, текст
 	attach           []struct {
-		name  string
-		files []string
+		name     string
+		files    []string
+		checkDir string
 	} // файлы в аттаче
 }
 
@@ -100,6 +102,12 @@ func (msg *escMsg) ready() []byte {
 func (msg escMsg) convAttach() []gophermail.Attachment {
 	g := make([]gophermail.Attachment, len(msg.attach))
 	for i := 0; i < len(msg.attach); i++ {
+		if msg.attach[i].checkDir != "" && tui.PromptYN("Проверить файлы для "+msg.attach[i].name+"?", false) {
+			copyToDir(msg.attach[i].files, msg.attach[i].checkDir)
+			if !tui.PromptYN("Файлы корректны?", false) {
+				log.Fatal("Файлы не корректны...")
+			}
+		}
 		g[i].Name = msg.attach[i].name
 		g[i].Data = pack(msg.attach[i].files)
 	}
@@ -140,18 +148,58 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 // copyToDir параллельно копирует массив файликов в данную директорию
 func copyToDir(files []string, dest string) {
 	var wg sync.WaitGroup
+	_, err := os.Lstat(dest)
+	if err != nil && os.IsExist(err) {
+		log.Fatal(err)
+	} else {
+		if os.IsNotExist(err) {
+			err = os.Mkdir(dest, os.FileMode(0777))
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 	for _, file := range files {
-		_, fname:=filepath.Split(file)
+		_, fname := filepath.Split(file)
 		wg.Add(1)
 		go func() {
-			copyFile(file, filepath.Clean(dest+string(os.PathSeparator())+fname))
- 			defer wg.Done()
+			err := copyFileContents(file, filepath.Clean(dest+string(os.PathSeparator)+fname))
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer wg.Done()
 		}()
 	}
+	wg.Wait()
+	report := ""
+	for _, s := range files {
+		report = report + "\n" + s
+	}
+	fmt.Println("Скопировали " + report + "\n" + "в директорию " + dest)
 }
 
-func copyFile(file string, copy string) {
-	os.Create()
+func copyFileContents(src, dst string) (err error) {
+	fmt.Println("Copy " + src + " to " + dst)
+	in, err := os.Open(src)
+	if err != nil {
+		return
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return
+	}
+	defer func() {
+		cerr := out.Close()
+		if err == nil {
+			err = cerr
+		}
+	}()
+	if _, err = io.Copy(out, in); err != nil {
+		return
+	}
+	err = out.Sync()
+	return
 }
 
 type server struct {
@@ -201,7 +249,6 @@ func customServer() (srv server) {
 
 func readConf() (srv server, msgs []escMsg) {
 	conf, err := ini.Load("config.ini")
-	/*t1:=template.New("MailSection")*/
 	conf.BlockMode = false
 	if err != nil {
 		log.Fatal(err)
@@ -279,8 +326,9 @@ func (sec msgSection) Name() string {
 }
 
 func readAttach(conf *ini.File, sectname string) (attach struct {
-	name  string
-	files []string
+	name     string
+	files    []string
+	checkDir string
 }) {
 	p := new(parser)
 	attsec, err := conf.GetSection(sectname)
@@ -306,6 +354,9 @@ func readAttach(conf *ini.File, sectname string) (attach struct {
 				attach.files = append(attach.files, checkFileName(p.parseString(f))...)
 			}
 		}
+	}
+	if attsec.HasKey("checkDir") {
+		attach.checkDir = attsec.Key("checkDir").String()
 	}
 	return
 }

@@ -14,7 +14,7 @@ func Prompt(ask string, dft string) (output string) {
 	// в библитеку бы
 	consolereader := bufio.NewReader(os.Stdin)
 	fmt.Println(ask)
-	rn, err := consolereader.ReadBytes('\r') // this will prompt the user for input
+	rn, err := consolereader.ReadBytes('\n') // this will prompt the user for input
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,19 +27,19 @@ func Prompt(ask string, dft string) (output string) {
 
 // PromptYN asks the user for bool variable
 func PromptYN(ask string, dft bool) bool {
-	l:="n"
+	l := "n"
 	if dft {
-		l="y"
+		l = "y"
 	}
 	for {
-		r:= Prompt(ask+" (y/n, default:"+l+")", l)
-		if r=="y" {
+		r := Prompt(ask+" (y/n, default:"+l+")", l)
+		if r == "y" {
 			return true
 		}
-		if r=="n" {
+		if r == "n" {
 			return false
 		}
-		fmt.Println("Некорректный ответ: "+r)
+		fmt.Println("Некорректный ответ: " + r)
 	}
 }
 
@@ -52,7 +52,7 @@ type SelectorItem interface {
 
 //MultiChoice returns a slice of SelectorItem, picked by user from original slice
 func MultiChoice(sel []SelectorItem) []SelectorItem {
-	for i:=0; i<len(sel); i++ {
+	for i := 0; i < len(sel); i++ {
 		fmt.Println(strconv.Itoa(i) + " : " + sel[i].Name())
 	}
 	var choice []int
@@ -78,12 +78,12 @@ func MultiChoice(sel []SelectorItem) []SelectorItem {
 		}
 	}
 	b := sel[:0]
-	for x:=0 ; x<=len(sel); x++ {
-		for _, n:=range choice {
-			if x==n {
-				b=append(b,sel[x])
+	for x := 0; x <= len(sel); x++ {
+		for _, n := range choice {
+			if x == n {
+				b = append(b, sel[x])
 			}
 		}
-    }
+	}
 	return b
 }
