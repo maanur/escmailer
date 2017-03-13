@@ -16,7 +16,7 @@ import (
 	//"strings"
 	"path/filepath"
 	"strings"
-	"sync"
+	//"sync"
 	"text/template"
 
 	"github.com/maanur/escmailer/tui"
@@ -147,7 +147,7 @@ func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes
 
 // copyToDir параллельно копирует массив файликов в данную директорию
 func copyToDir(files []string, dest string) {
-	var wg sync.WaitGroup
+	//var wg sync.WaitGroup
 	_, err := os.Lstat(dest)
 	if err != nil && os.IsExist(err) {
 		log.Fatal(err)
@@ -159,18 +159,18 @@ func copyToDir(files []string, dest string) {
 			}
 		}
 	}
-	for _, file := range files {
-		_, fname := filepath.Split(file)
-		wg.Add(1)
-		go func() {
-			err := copyFileContents(file, filepath.Clean(dest+string(os.PathSeparator)+fname))
+	for i:=0 ; i<len(files); i++ {
+		//wg.Add(1)
+		func() {
+			_, fname := filepath.Split(files[i])
+			err := copyFileContents(files[i], filepath.Clean(dest+string(os.PathSeparator)+fname))
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer wg.Done()
+			//defer wg.Done()
 		}()
 	}
-	wg.Wait()
+	//wg.Wait()
 	report := ""
 	for _, s := range files {
 		report = report + "\n" + s
@@ -179,7 +179,6 @@ func copyToDir(files []string, dest string) {
 }
 
 func copyFileContents(src, dst string) (err error) {
-	fmt.Println("Copy " + src + " to " + dst)
 	in, err := os.Open(src)
 	if err != nil {
 		return

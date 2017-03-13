@@ -14,11 +14,12 @@ func Prompt(ask string, dft string) (output string) {
 	// в библитеку бы
 	consolereader := bufio.NewReader(os.Stdin)
 	fmt.Println(ask)
+	
 	rn, err := consolereader.ReadBytes('\n') // this will prompt the user for input
 	if err != nil {
 		log.Fatal(err)
 	}
-	output = string(rn[:len(rn)-1])
+	output = strings.TrimSpace(string(rn))
 	if output == "" {
 		return dft
 	}
