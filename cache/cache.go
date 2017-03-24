@@ -59,7 +59,7 @@ func (cache *Cache) WriteLine(line []byte) {
 	cache.writer <- buf
 }
 
-//ReadFor reads bytes from Cache until meets the given line.
+// ReadFor reads bytes from Cache until meets the given line.
 func (cache *Cache) ReadFor(line []byte) {
 	buf := make([]byte, 0)
 	for !compare(buf, line) {
