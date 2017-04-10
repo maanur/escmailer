@@ -18,6 +18,7 @@ import (
 	//"text/template"
 
 	"github.com/maanur/escmailer/tui"
+	"github.com/maanur/escmailer/txtparser"
 	//"github.com/maanur/escmailer/cache"
 
 	//"time"
@@ -194,14 +195,14 @@ func readConf() (srv server, msgs []escMsg) {
 	for _, sect := range msgchosen {
 		var msg escMsg
 		msg.name = sect.Key("name").String()
-		p := newParser(msg.name)
+		p := new(txtparser.Parser)
 		msg.to = sect.Key("to").Strings(",")
 		msg.cc = sect.Key("cc").Strings(",")
 		msg.bcc = sect.Key("bcc").Strings(",")
 		msg.from = sect.Key("from").String()
-		msg.subj = p.parseString(sect.Key("subj").String())
+		msg.subj = p.ParseString(sect.Key("subj").String())
 		//add template
-		msg.body = p.parseString(sect.Key("body").String() + string(10) + "--" + string(10) + signature)
+		msg.body = p.ParseString(sect.Key("body").String() + string(10) + "--" + string(10) + signature)
 		for _, att := range sect.Key("attach").Strings(",") {
 			msg.attach = append(msg.attach, readAttach(conf, att))
 		}
@@ -226,7 +227,7 @@ func readAttach(conf *ini.File, sectname string) (attach struct {
 	checkNsp  string
 	checkFunc []string
 }) {
-	p := new(parser)
+	p := new(txtparser.Parser)
 	attsec, err := conf.GetSection(sectname)
 	if err != nil {
 		log.Println(err)

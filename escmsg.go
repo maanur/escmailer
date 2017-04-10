@@ -10,7 +10,7 @@ import (
 	"os"
 
 	"github.com/jpoehls/gophermail"
-	"github.com/maanur/escmailer/cache"
+	//"github.com/maanur/escmailer/cache"
 	"github.com/maanur/escmailer/tui"
 )
 
@@ -84,18 +84,18 @@ func (msg escMsg) convAttach() []gophermail.Attachment {
 }
 
 func checkAttach(attach struct {
-		name      string
-		files     []string
-		checkDir  string
-		checkNsp  string
-		checkFunc []string
-	}) {
+	name      string
+	files     []string
+	checkDir  string
+	checkNsp  string
+	checkFunc []string
+}) {
 	if attach.checkDir != "" && tui.PromptYN("Проверить файлы для "+attach.name+"?", false) {
-			copyToDir(attach.files, attach.checkDir)
-			if !tui.PromptYN("Файлы корректны?", false) {
-				log.Fatal("Файлы не корректны...")
-			}
+		copyToDir(attach.files, attach.checkDir)
+		if !tui.PromptYN("Файлы корректны?", false) {
+			log.Fatal("Файлы не корректны...")
 		}
+	}
 }
 
 func pack(files []string) *bytes.Buffer { //поменял вывод с []bytes на bytes.Buffer, который должен бы быть io.Reader
