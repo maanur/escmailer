@@ -234,21 +234,21 @@ func readAttach(conf *ini.File, sectname string) (attach struct {
 	} else {
 		attach.name = attsec.Key("name").String()
 		if attsec.HasKey("directory") && attsec.Key("directory").String() != "" {
-			dir := p.parseString(attsec.Key("directory").String())
+			dir := p.ParseString(attsec.Key("directory").String())
 			files := attsec.Key("files").Strings(",")
 			if strings.HasSuffix(dir, string(os.PathSeparator)) {
 				for _, file := range files {
-					attach.files = append(attach.files, checkFileName(p.parseString(dir+file))...)
+					attach.files = append(attach.files, checkFileName(p.ParseString(dir+file))...)
 				}
 			} else {
 				for _, file := range files {
-					attach.files = append(attach.files, checkFileName(p.parseString(dir+string(os.PathSeparator)+file))...)
+					attach.files = append(attach.files, checkFileName(p.ParseString(dir+string(os.PathSeparator)+file))...)
 				}
 			}
 
 		} else {
 			for _, f := range attsec.Key("files").Strings(",") {
-				attach.files = append(attach.files, checkFileName(p.parseString(f))...)
+				attach.files = append(attach.files, checkFileName(p.ParseString(f))...)
 			}
 		}
 	}

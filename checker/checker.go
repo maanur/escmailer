@@ -1,9 +1,13 @@
-package main
+package checker
 
 import (
 	"fmt"
 	"github.com/maanur/escmailer/cache"
 )
+
+type Checker interface{
+	Check(string) bool
+}
 
 type cachesrv struct {
 	addr, login, pass string
