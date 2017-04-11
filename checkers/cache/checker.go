@@ -1,13 +1,8 @@
-package checker
+package cache
 
 import (
 	"fmt"
-	"github.com/maanur/escmailer/cache"
 )
-
-type Checker interface{
-	Check(string) bool
-}
 
 type cachesrv struct {
 	addr, login, pass string
@@ -15,17 +10,17 @@ type cachesrv struct {
 
 type checker struct {
 	name, dir, nsp string
-	cmd chan cachecmd
-	sem chan int
+	cmd            chan cachecmd
+	sem            chan int
 }
 
 type cachecmd struct {
 	cmd string // строка команды
-	ret bool // ожидаем ли ответ?
+	ret bool   // ожидаем ли ответ?
 }
 
-func newChecker(name, dir, nsp string) (*checker) {
-	ch:=new(checker)
+func newChecker(name, dir, nsp string) *checker {
+	ch := new(checker)
 	ch.name = name
 	ch.dir = dir
 	ch.nsp = nsp
@@ -36,10 +31,10 @@ func newChecker(name, dir, nsp string) (*checker) {
 
 func (ch *checker) start(srv cachesrv) {
 	go func() {
-		conn:=cache.DialCache(srv.addr, srv.login, srv.pass)
+		conn := DialCache(srv.addr, srv.login, srv.pass)
 		conn.ChangeNsp(ch.nsp)
 		for {
-			cmd := <- ch.cmd
+			cmd := <-ch.cmd
 			if cmd.ret {
 				fmt.Println(conn.Query(cmd.cmd))
 			} else {
