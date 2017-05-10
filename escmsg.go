@@ -19,13 +19,7 @@ type escMsg struct {
 	name             string   // идентификактор письма
 	to, cc, bcc      []string // кому, копия, скрытая копия
 	from, subj, body string   // от, тема, текст
-	attach           []struct {
-		name      string
-		files     []string
-		checkDir  string
-		checkNsp  string
-		checkFunc []string
-	} // файлы в аттаче
+	attach           []attach // файлы в аттаче
 }
 
 func (msg escMsg) Name() string {
@@ -71,16 +65,6 @@ func (msg *escMsg) ready() []byte {
 		log.Fatal(err)
 	}
 	return output
-}
-
-func (msg escMsg) convAttach() []gophermail.Attachment {
-	g := make([]gophermail.Attachment, len(msg.attach))
-	for i := 0; i < len(msg.attach); i++ {
-		checkAttach(msg.attach[i])
-		g[i].Name = msg.attach[i].name
-		g[i].Data = pack(msg.attach[i].files)
-	}
-	return g
 }
 
 func checkAttach(attach struct {

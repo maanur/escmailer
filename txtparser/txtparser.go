@@ -16,17 +16,19 @@ import (
 type Parser struct {
 	count     int
 	countOnce sync.Once
+	name      string
 }
 
-// Count возвращает значение внутреннего счетчика парсера p
+// Count один раз запрашивает у пользователя, а далее просто возвращает значение p.count
 func (p *Parser) Count() int {
 	p.countOnce.Do(func() {
 		for {
-			cnt, err := strconv.Atoi(tui.Prompt("Значение {{Count}}", "0"))
+			cnt, err := strconv.Atoi(tui.Prompt("Значение {{Count}} для "+p.name, "0"))
 			if err != nil {
 				log.Println(err)
 			} else {
 				p.count = cnt
+				break
 			}
 		}
 	})
